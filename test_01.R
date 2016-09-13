@@ -17,7 +17,7 @@ obj$load.csv(anag.fileName="ANAGRAFICA.txt",
              default.folder='../otherFiles/import_01',
              header = TRUE, sep="$")
 # Carico il dizionario (per il grouping delle prestazioni)
-obj$caricaDizionario( fileName = './dizionarioPrestazioni.csv' )
+obj$caricaDizionario( fileName = '../otherFiles/import_01/dizionarioPrestazioni.csv' )
 
 # Estrai i dati dei pazienti trattati per ca mammario
 # (Notare la scelta del tipo di raggruppamento, indicato dalla colonna del file 'dizionarioPrestazioni.csv')
