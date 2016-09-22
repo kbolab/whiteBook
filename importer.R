@@ -9,6 +9,7 @@ importer<-function() {
   imp.prest<-c();
   imp.file.f<-c();
   imp.ICD9<-c();
+  imp.RT<-c();
   diz.reparti.ricovero<-c();
   dizionarioPrestazioni<-c();
   # -------------------------------------------------------------
@@ -18,6 +19,7 @@ importer<-function() {
                       dege.fileName="DEGENZA_NEW.txt", 
                       prest.fileName="prestazioni.txt" , 
                       file.f.fileName='FILE_F.TXT', 
+                      RT.fileName="monitoraggio_rt_conf.txt",
                       ICD9.fileName="ICD9.csv", 
                       default.folder='./import_01',
                       header = TRUE, sep="$") {
@@ -26,6 +28,7 @@ importer<-function() {
     dege.fileName <- file.path(default.folder,dege.fileName)
     file.f.fileName <- file.path(default.folder,file.f.fileName)
     ICD9.fileName <- file.path(default.folder,ICD9.fileName)
+    RT.fileName <- file.path(default.folder,RT.fileName)
     
     cat("\n Inizio a caricare le degenze")
     imp.dege <<- read.csv(dege.fileName,header = header,sep = sep)
@@ -35,6 +38,8 @@ importer<-function() {
     imp.file.f <<- read.csv(file.f.fileName,header = header,sep = sep)   
     cat("\n Inizio a caricare gli ICD9")
     imp.ICD9 <<- read.csv(ICD9.fileName)
+    cat("\n Inizio a caricare i dati della radioterapia")
+    imp.RT <<- read.csv(file = RT.fileName ,header = T,sep = "\t")    
 
     # Sistema il codice sanitario (in una delle due tabelle)
     # il CODICE_SANITARIO vede aggiunto un carattere in fondo
@@ -246,6 +251,9 @@ importer<-function() {
     for( ICD9 in arr.ICD9 ) {
       matrice.date<-rbind(matrice.date,prendi.prima.data.diagnosi.ICD9( as.character(ICD9) , daRitornare=c("CODICE_SANITARIO_ADT","DATA_RICOVERO") ) )
     }
+    # Costruisci l'array contenente i codici sanitari
+    array.codici.sanitari<-unique(matrice.date[,1])
+    
     # Per ogni riga aggiungi la data della prima diagnosi dell'ICD9 e il delta in 
     # giorni fra la diagnosi e la  data di erogazione della prestazione
     # a<-imp.prest
@@ -279,10 +287,36 @@ importer<-function() {
     }
     
     # togli i casi in cui la data diagnosi è NA e la prestazione è antecedente
-    # alla data diagnori   
+    # alla data diagnosi   
     a<-a[!is.na(a$dataDiagnosi),]
     a<- a[ which(a$delta.dataDiagnosi>=0)  ,]
 #     browser()
+
+    # Aggiungi i dati di Radioterapia (se ci sono)
+    if( is.data.frame(imp.RT) ) {
+
+      gg <- array.codici.sanitari[(array.codici.sanitari %in%  imp.RT$Codice.Sanitario)]
+      RT.subset <- imp.RT[which(imp.RT$Codice.Sanitario %in% gg),]
+
+      # sottotabellaPrestazioni<-cbind(RT.subset$Codice.Sanitario, as.character(RT.subset$Attività),as.character(RT.subset$Data.Effettuazione), rep(0,ncol(RT.subset)), rep(0,ncol(RT.subset)) )
+      sottotabellaPrestazioni<-cbind(RT.subset$Codice.Sanitario, as.character(RT.subset$Data.Effettuazione), as.character(RT.subset[["Attività"]]), rep(0,nrow(RT.subset)), rep(0,nrow(RT.subset))  )   
+      # colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","AY_EXDES","data_erog","dataDiagnosi","deltaDataDiagnosi")
+
+      colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES","dataDiagnosi","delta.dataDiagnosi")
+      for( codSan in gg) {
+        # b<-which(a$CODICE_SANITARIO_ADT== codSan)
+        b<-which(sottotabellaPrestazioni[,"CODICE_SANITARIO_ADT"]== codSan)
+        dataDiagnosi <- a[which(a[,"CODICE_SANITARIO_ADT"]== codSan),"dataDiagnosi"][1]
+        deltaT<- - as.numeric(difftime(as.POSIXct(dataDiagnosi, format = "%d/%m/%Y"),as.POSIXct(sottotabellaPrestazioni[b,"data_erog"], format = "%Y-%m-%d"),units = 'days'))        
+        sottotabellaPrestazioni[ b , "delta.dataDiagnosi" ]<- deltaT
+        sottotabellaPrestazioni[ b , "dataDiagnosi" ]<- dataDiagnosi 
+        # la riga sotto è molto sospetta :)
+#         dataDiagnosi <- a[b,"dataDiagnosi"][1]
+#         deltaT<-as.numeric(difftime(as.POSIXct(a[b, "data_erog"], format = "%d/%m/%Y"),as.POSIXct(matrice.date[riga,2], format = "%d/%m/%Y"),units = 'days'))
+      }
+      a <- rbind(a,sottotabellaPrestazioni)
+    }
+    
     # Se era stato indicato un dizionario (e la relativa colonna) caricalo
     # e popola una colonna aggiuntiva
     if(length(colonnaDizionario)  > 0 ) {
@@ -292,11 +326,12 @@ importer<-function() {
           arrPosizioniTMP<-which(dizionarioPrestazioni[[ matchingColumn.diz ]]==x )
           if(length(arrPosizioniTMP)==0) return( misclassifiedName )
           else return(as.character(dizionarioPrestazioni[  arrPosizioniTMP  ,colonnaDizionario])  )
-          }  ))
+        }  ))
         a<-cbind(a,bbb)
         colnames(a)<-c(colnames(a)[1:(length(colnames(a))-1)] ,newColumnName)
       } 
     }
+    
 #    browser()
     return(a)
   }  
@@ -327,6 +362,7 @@ importer<-function() {
     imp.prest<<-c();    
     imp.file.f<<-c();
     imp.ICD9<<-c();
+    imp.RT<<-c();
     diz.reparti.ricovero<<-c()
     dizionarioPrestazioni<<-c()
   }
