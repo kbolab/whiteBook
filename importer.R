@@ -250,7 +250,9 @@ importer<-function() {
     # Estrai la sottomatrice delle prestazioni dei pazienti con gli ICD9 desiderati
     for( ICD9 in arr.ICD9 ) {
       matrice.date<-rbind(matrice.date,prendi.prima.data.diagnosi.ICD9( as.character(ICD9) , daRitornare=c("CODICE_SANITARIO_ADT","DATA_RICOVERO") ) )
+      # matrice.date<-rbind(matrice.date, rep("01/01/1900",length(matrice.date)) )
     }
+    
     # Costruisci l'array contenente i codici sanitari
     array.codici.sanitari<-unique(matrice.date[,1])
     
@@ -264,10 +266,7 @@ importer<-function() {
     colnames(b.1)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES")
     colnames(b.2)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES")
     a<-rbind(b.1,b.2)
-#     a$CODICE_SANITARIO_ADT <- as.character( a$CODICE_SANITARIO_ADT )
-#     a$data_erog <- as.character( a$data_erog )
-#     a$AY_EXDES <- as.character( a$AY_EXDES )
-  
+
     a$dataDiagnosi<-NA  
     # Cicla per ogni paziente (matrice.date è una tabella di due colonne <idpaziente,datadiagnosi>)
     for( riga in seq(1,nrow(matrice.date)) ) {
@@ -290,7 +289,6 @@ importer<-function() {
     # alla data diagnosi   
     a<-a[!is.na(a$dataDiagnosi),]
     a<- a[ which(a$delta.dataDiagnosi>=0)  ,]
-#     browser()
 
     # Aggiungi i dati di Radioterapia (se ci sono)
     if( is.data.frame(imp.RT) ) {
@@ -304,15 +302,11 @@ importer<-function() {
 
       colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES","dataDiagnosi","delta.dataDiagnosi")
       for( codSan in gg) {
-        # b<-which(a$CODICE_SANITARIO_ADT== codSan)
         b<-which(sottotabellaPrestazioni[,"CODICE_SANITARIO_ADT"]== codSan)
         dataDiagnosi <- a[which(a[,"CODICE_SANITARIO_ADT"]== codSan),"dataDiagnosi"][1]
         deltaT<- - as.numeric(difftime(as.POSIXct(dataDiagnosi, format = "%d/%m/%Y"),as.POSIXct(sottotabellaPrestazioni[b,"data_erog"], format = "%Y-%m-%d"),units = 'days'))        
         sottotabellaPrestazioni[ b , "delta.dataDiagnosi" ]<- deltaT
         sottotabellaPrestazioni[ b , "dataDiagnosi" ]<- dataDiagnosi 
-        # la riga sotto è molto sospetta :)
-#         dataDiagnosi <- a[b,"dataDiagnosi"][1]
-#         deltaT<-as.numeric(difftime(as.POSIXct(a[b, "data_erog"], format = "%d/%m/%Y"),as.POSIXct(matrice.date[riga,2], format = "%d/%m/%Y"),units = 'days'))
       }
       a <- rbind(a,sottotabellaPrestazioni)
     }
@@ -332,7 +326,6 @@ importer<-function() {
       } 
     }
     
-#    browser()
     return(a)
   }  
   # -------------------------------------------------------------
