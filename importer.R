@@ -125,6 +125,9 @@ importer<-function() {
     big.tmp.imp.dege$CODICE_SANITARIO_ADT <- as.character(big.tmp.imp.dege$CODICE_SANITARIO_ADT)
     big.tmp.imp.dege$data_erog <- as.character(big.tmp.imp.dege$data_erog)
     big.tmp.imp.dege$AY_EXDES <- as.character(big.tmp.imp.dege$AY_EXDES)
+    big.tmp.imp.dege$AA_ACSTA <- as.character(big.tmp.imp.dege$AA_ACSTA)
+    big.tmp.imp.dege <- big.tmp.imp.dege[  which( big.tmp.imp.dege$AA_ACSTA == "7" | big.tmp.imp.dege$AA_ACSTA=="8" | big.tmp.imp.dege$AA_ACSTA=="9" ) ,]
+    
     return(big.tmp.imp.dege)
   } 
   # -------------------------------------------------------------
@@ -275,9 +278,12 @@ importer<-function() {
       # se ce n'è almeno una
       if(length(b)>0) {
         # Aggiungi la data diagnosi ad imp.prest
+        data.cazzuta <- "01/01/1970"
         a[b, "dataDiagnosi"]<-matrice.date[riga,2]
+        # a[b, "dataDiagnosi"]<-data.cazzuta
         # Calcola il delta T
         deltaT<-as.numeric(difftime(as.POSIXct(a[b, "data_erog"], format = "%d/%m/%Y"),as.POSIXct(matrice.date[riga,2], format = "%d/%m/%Y"),units = 'days'))
+        # deltaT<-as.numeric(difftime(as.POSIXct(a[b, "data_erog"], format = "%d/%m/%Y"),as.POSIXct(data.cazzuta, format = "%d/%m/%Y"),units = 'days'))
         # Aggiungi anche la colonna del DELTA T
         a[b, "delta.dataDiagnosi"]<- deltaT
       }
@@ -288,7 +294,7 @@ importer<-function() {
     # togli i casi in cui la data diagnosi è NA e la prestazione è antecedente
     # alla data diagnosi   
     a<-a[!is.na(a$dataDiagnosi),]
-    a<- a[ which(a$delta.dataDiagnosi>=0)  ,]
+    # a<- a[ which(a$delta.dataDiagnosi>=0)  ,]
 
     # Aggiungi i dati di Radioterapia (se ci sono)
     if( is.data.frame(imp.RT) ) {
