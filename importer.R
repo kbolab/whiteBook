@@ -12,6 +12,7 @@ importer<-function() {
   imp.RT<-c();
   diz.reparti.ricovero<-c();
   dizionarioPrestazioni<-c();
+  matrice.decod.reparto<-c();
   # -------------------------------------------------------------
   # load.csv
   # -------------------------------------------------------------  
@@ -32,6 +33,7 @@ importer<-function() {
     
     cat("\n Inizio a caricare le degenze")
     imp.dege <<- read.csv(dege.fileName,header = header,sep = sep)
+    post.processing.degenze()
     cat("\n Inizio a caricare le prestazioni")
     imp.prest <<- preprocessing.prestazioni(mainDir = default.folder, file2Process = prest.fileName, sep = sep, header = header)
     cat("\n Inizio a caricare i FILE F")
@@ -53,6 +55,12 @@ importer<-function() {
 #     aggiusta.ICD9()
     cat("\n Dati importati.")
   }   
+  # -------------------------------------------------------------
+  # post.processing.degenze
+  # -------------------------------------------------------------  
+  post.processing.degenze<-function(){
+    matrice.decod.reparto<<-cbind(as.character(imp.dege$REPARTO_RICOVERO),as.character(imp.dege$DESC_REPARTO_RICOVERO))
+  }
   # -------------------------------------------------------------
   # preprocessing
   # -------------------------------------------------------------
@@ -303,7 +311,7 @@ importer<-function() {
       RT.subset <- imp.RT[which(imp.RT$Codice.Sanitario %in% gg),]
 
       # sottotabellaPrestazioni<-cbind(RT.subset$Codice.Sanitario, as.character(RT.subset$Attività),as.character(RT.subset$Data.Effettuazione), rep(0,ncol(RT.subset)), rep(0,ncol(RT.subset)) )
-      sottotabellaPrestazioni<-cbind(RT.subset$Codice.Sanitario, as.character(RT.subset$Data.Effettuazione), as.character(RT.subset[["Attività"]]), rep(0,nrow(RT.subset)), rep(0,nrow(RT.subset))  )   
+      sottotabellaPrestazioni<-cbind(RT.subset$Codice.Sanitario, as.character(RT.subset$Data.Effettuazione), as.character(RT.subset[["Prestazione"]]), rep(0,nrow(RT.subset)), rep(0,nrow(RT.subset))  )   
       # colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","AY_EXDES","data_erog","dataDiagnosi","deltaDataDiagnosi")
 
       colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES","dataDiagnosi","delta.dataDiagnosi")
@@ -316,6 +324,49 @@ importer<-function() {
       }
       a <- rbind(a,sottotabellaPrestazioni)
     }
+    
+    # Aggiungi i dati di Ricovero
+    sottotabellaPrestazioni<-c()
+    for( codSan in array.codici.sanitari) {
+      cat("\n Ricovero, paz:",codSan)
+      arr.str.date.usc<-list()
+      arr.str.date.ing<-list()
+      arr.str.rep<-list()
+      dataDiagnosi <- a[which(a[,"CODICE_SANITARIO_ADT"]== codSan),"dataDiagnosi"][1]
+      arr.riga <- which(imp.dege[["CODICE_SANITARIO_ADT"]]==codSan)
+      
+      for(riga in arr.riga) {
+        sottotabellaPrestazioni<-c()
+        for(i in seq(1,15)) { 
+          data.rilevata.usc<-as.character(imp.dege[[str_c("DATAUSC",i)]][riga] )
+          data.rilevata.ing<-as.character(imp.dege[[str_c("DATAING",i)]][riga] )
+          reparto.ricovero<-as.character(imp.dege[[str_c("REP",i)]][riga] )  
+          if(!is.na(data.rilevata.usc) & data.rilevata.usc!="") {
+            arr.str.date.usc[[str_c("DATAUSC",i)]]<-data.rilevata.usc
+          }
+          if(!is.na(data.rilevata.ing) & data.rilevata.ing!="") {
+            arr.str.date.ing[[str_c("DATAING",i)]]<-data.rilevata.ing
+          }  
+          if(!is.na(reparto.ricovero) & reparto.ricovero!="" & reparto.ricovero!="0") {
+            desc.reparto.ricovero <- unique(matrice.decod.reparto[which(matrice.decod.reparto[,1]==reparto.ricovero),2])
+            # Nella speranza che sia già stata censita!
+            if(length(desc.reparto.ricovero)>0)
+              arr.str.rep[[str_c("REP",i)]]<-desc.reparto.ricovero
+            else
+              arr.str.rep[[str_c("REP",i)]]<-reparto.ricovero
+          }          
+        }
+        for(i in seq(1,length(arr.str.rep))) {
+          deltaT.ric<- - as.numeric(difftime(as.POSIXct(dataDiagnosi, format = "%d/%m/%Y"),as.POSIXct(arr.str.date.ing[[i]], format = "%d/%m/%Y"),units = 'days'))        
+          deltaT.usc<- - as.numeric(difftime(as.POSIXct(dataDiagnosi, format = "%d/%m/%Y"),as.POSIXct(arr.str.date.usc[[i]], format = "%d/%m/%Y"),units = 'days'))        
+          sottotabellaPrestazioni <- rbind(sottotabellaPrestazioni, c(codSan,arr.str.date.ing[[i]],str_c("Ricovero ",arr.str.rep[i])   ,dataDiagnosi,deltaT.ric) )
+          sottotabellaPrestazioni <- rbind(sottotabellaPrestazioni, c(codSan,arr.str.date.usc[[i]],str_c("Dimissione ",arr.str.rep[i])   ,dataDiagnosi,deltaT.usc) )
+        }
+        colnames(sottotabellaPrestazioni)<-c("CODICE_SANITARIO_ADT","data_erog","AY_EXDES","dataDiagnosi","delta.dataDiagnosi")
+        a<-rbind(a,as.data.frame(sottotabellaPrestazioni))
+      }
+    }
+    
     
     # Se era stato indicato un dizionario (e la relativa colonna) caricalo
     # e popola una colonna aggiuntiva
@@ -331,7 +382,6 @@ importer<-function() {
         colnames(a)<-c(colnames(a)[1:(length(colnames(a))-1)] ,newColumnName)
       } 
     }
-    
     return(a)
   }  
   # -------------------------------------------------------------
@@ -364,6 +414,7 @@ importer<-function() {
     imp.RT<<-c();
     diz.reparti.ricovero<<-c()
     dizionarioPrestazioni<<-c()
+    matrice.decod.reparto<<-c()
   }
   importer()
   return(
